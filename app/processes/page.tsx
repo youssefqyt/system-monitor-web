@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import PageHeader from "@/components/PageHeader";
+import { Cpu } from "lucide-react";
 
 function formatBytes(bytes: number) {
   if (!bytes) return "0 B";
@@ -56,6 +57,18 @@ export default function ProcessesPage() {
         onRefresh={load}
         loading={loading}
       />
+
+      {data?.isVercel && (
+        <div className="rounded-xl border border-blue-800 bg-blue-950/40 p-4 text-sm text-blue-400 mb-6 flex items-start gap-3">
+          <Cpu className="w-5 h-5 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold mb-1">Serverless Environment Detected</p>
+            <p className="opacity-80">
+              Process listing on Vercel is restricted. You are seeing processes within the serverless execution context.
+            </p>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-400 mb-6">

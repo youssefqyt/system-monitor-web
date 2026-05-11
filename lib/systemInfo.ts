@@ -1,153 +1,209 @@
 import si from "systeminformation";
 
 export async function getSystemOverview() {
-  const [cpu, mem, osInfo, battery, graphics] = await Promise.all([
-    si.cpu(),
-    si.mem(),
-    si.osInfo(),
-    si.battery(),
-    si.graphics(),
-  ]);
+  try {
+    const [cpu, mem, osInfo, battery, graphics] = await Promise.all([
+      si.cpu().catch(() => ({})),
+      si.mem().catch(() => ({})),
+      si.osInfo().catch(() => ({})),
+      si.battery().catch(() => ({})),
+      si.graphics().catch(() => ({ controllers: [] })),
+    ]);
 
-  const currentLoad = await si.currentLoad();
+    let currentLoad: any = { currentLoad: 0 };
+    try {
+      currentLoad = await si.currentLoad();
+    } catch (e) {
+      console.error("Error fetching current load:", e);
+    }
 
-  return {
-    cpu: {
-      manufacturer: cpu.manufacturer,
-      brand: cpu.brand,
-      speed: cpu.speed,
-      cores: cpu.cores,
-      physicalCores: cpu.physicalCores,
-      load: Math.round(currentLoad.currentLoad),
-    },
-    memory: {
-      total: mem.total,
-      used: mem.used,
-      free: mem.free,
-      usedPercent: Math.round((mem.used / mem.total) * 100),
-    },
-    os: {
-      platform: osInfo.platform,
-      distro: osInfo.distro,
-      release: osInfo.release,
-      arch: osInfo.arch,
-      hostname: osInfo.hostname,
-      kernel: osInfo.kernel,
-    },
-    battery: {
-      hasBattery: battery.hasBattery,
-      percent: battery.percent,
-      isCharging: battery.isCharging,
-    },
-    gpu: graphics.controllers.map((g) => ({
-      vendor: g.vendor,
-      model: g.model,
-      vram: g.vram,
-    })),
-  };
+    return {
+      cpu: {
+        manufacturer: cpu.manufacturer || "N/A",
+        brand: cpu.brand || "N/A",
+        speed: cpu.speed || 0,
+        cores: cpu.cores || 0,
+        physicalCores: cpu.physicalCores || 0,
+        load: Math.round(currentLoad.currentLoad || 0),
+      },
+      memory: {
+        total: mem.total || 0,
+        used: mem.used || 0,
+        free: mem.free || 0,
+        usedPercent: mem.total ? Math.round((mem.used / mem.total) * 100) : 0,
+      },
+      os: {
+        platform: osInfo.platform || "N/A",
+        distro: osInfo.distro || "N/A",
+        release: osInfo.release || "N/A",
+        arch: osInfo.arch || "N/A",
+        hostname: osInfo.hostname || "N/A",
+        kernel: osInfo.kernel || "N/A",
+      },
+      battery: {
+        hasBattery: battery.hasBattery || false,
+        percent: battery.percent || 0,
+        isCharging: battery.isCharging || false,
+      },
+      gpu: (graphics.controllers || []).map((g: any) => ({
+        vendor: g.vendor || "N/A",
+        model: g.model || "N/A",
+        vram: g.vram || 0,
+      })),
+      isVercel: !!process.env.VERCEL,
+    };
+  } catch (error) {
+    console.error("Error in getSystemOverview:", error);
+    throw error;
+  }
 }
 
 export async function getPortsAndServices() {
-  const connections = await si.networkConnections();
-  const listening = connections.filter(
-    (c) => c.state === "LISTEN" || c.state === "LISTENING"
-  );
-  return listening.map((c) => ({
-    localAddress: c.localAddress,
-    localPort: c.localPort,
-    protocol: c.protocol,
-    pid: c.pid,
-    state: c.state,
-  }));
+  try {
+    const connections = await si.networkConnections().catch(() => []);
+    const listening = connections.filter(
+      (c) => c.state === "LISTEN" || c.state === "LISTENING"
+    );
+    return {
+      list: listening.map((c) => ({
+        localAddress: c.localAddress,
+        localPort: c.localPort,
+        protocol: c.protocol,
+        pid: c.pid,
+        state: c.state,
+      })),
+      isVercel: !!process.env.VERCEL,
+    };
+  } catch (error) {
+    console.error("Error in getPortsAndServices:", error);
+    return {
+      list: [],
+      isVercel: !!process.env.VERCEL,
+    };
+  }
 }
 
 export async function getProcesses() {
-  const procs = await si.processes();
-  return {
-    all: procs.all,
-    running: procs.running,
-    sleeping: procs.sleeping,
-    list: procs.list
-      .sort((a, b) => b.cpu - a.cpu)
-      .slice(0, 50)
-      .map((p) => ({
-        pid: p.pid,
-        name: p.name,
-        cpu: Math.round(p.cpu * 100) / 100,
-        mem: Math.round(p.mem * 100) / 100,
-        memVsz: p.memVsz,
-        memRss: p.memRss,
-        started: p.started,
-        state: p.state,
-        user: p.user,
-        command: p.command,
-      })),
-  };
+  try {
+    const procs = await si.processes().catch(() => ({ all: 0, running: 0, sleeping: 0, list: [] }));
+    return {
+      all: procs.all || 0,
+      running: procs.running || 0,
+      sleeping: procs.sleeping || 0,
+      list: (procs.list || [])
+        .sort((a, b) => b.cpu - a.cpu)
+        .slice(0, 50)
+        .map((p) => ({
+          pid: p.pid,
+          name: p.name,
+          cpu: Math.round(p.cpu * 100) / 100,
+          mem: Math.round(p.mem * 100) / 100,
+          memVsz: p.memVsz,
+          memRss: p.memRss,
+          started: p.started,
+          state: p.state,
+          user: p.user,
+          command: p.command,
+        })),
+      isVercel: !!process.env.VERCEL,
+    };
+  } catch (error) {
+    console.error("Error in getProcesses:", error);
+    return {
+      all: 0,
+      running: 0,
+      sleeping: 0,
+      list: [],
+      isVercel: !!process.env.VERCEL,
+    };
+  }
 }
 
 export async function getDiskInfo() {
-  const [disks, fsSize, diskIO] = await Promise.all([
-    si.diskLayout(),
-    si.fsSize(),
-    si.disksIO(),
-  ]);
+  try {
+    const [disks, fsSize, diskIO] = await Promise.all([
+      si.diskLayout().catch(() => []),
+      si.fsSize().catch(() => []),
+      si.disksIO().catch(() => ({})),
+    ]);
 
-  return {
-    physical: disks.map((d) => ({
-      name: d.name,
-      type: d.type,
-      vendor: d.vendor,
-      size: d.size,
-      interfaceType: d.interfaceType,
-    })),
-    filesystems: fsSize.map((f) => ({
-      fs: f.fs,
-      type: f.type,
-      size: f.size,
-      used: f.used,
-      available: f.available,
-      usePercent: f.use,
-      mount: f.mount,
-    })),
-    io: {
-      rIO: diskIO?.rIO ?? 0,
-      wIO: diskIO?.wIO ?? 0,
-      rIO_sec: diskIO?.rIO_sec ?? 0,
-      wIO_sec: diskIO?.wIO_sec ?? 0,
-    },
-  };
+    return {
+      physical: (disks || []).map((d) => ({
+        name: d.name,
+        type: d.type,
+        vendor: d.vendor,
+        size: d.size,
+        interfaceType: d.interfaceType,
+      })),
+      filesystems: (fsSize || []).map((f) => ({
+        fs: f.fs,
+        type: f.type,
+        size: f.size,
+        used: f.used,
+        available: f.available,
+        usePercent: f.use,
+        mount: f.mount,
+      })),
+      io: {
+        rIO: diskIO?.rIO ?? 0,
+        wIO: diskIO?.wIO ?? 0,
+        rIO_sec: diskIO?.rIO_sec ?? 0,
+        wIO_sec: diskIO?.wIO_sec ?? 0,
+      },
+      isVercel: !!process.env.VERCEL,
+    };
+  } catch (error) {
+    console.error("Error in getDiskInfo:", error);
+    return {
+      physical: [],
+      filesystems: [],
+      io: { rIO: 0, wIO: 0, rIO_sec: 0, wIO_sec: 0 },
+      isVercel: !!process.env.VERCEL,
+    };
+  }
 }
 
 export async function getNetworkInfo() {
-  const [interfaces, stats, defaultNet] = await Promise.all([
-    si.networkInterfaces(),
-    si.networkStats(),
-    si.networkInterfaceDefault(),
-  ]);
+  try {
+    const [interfaces, stats, defaultNet] = await Promise.all([
+      si.networkInterfaces().catch(() => []),
+      si.networkStats().catch(() => []),
+      si.networkInterfaceDefault().catch(() => ""),
+    ]);
 
-  const ifaceArray = Array.isArray(interfaces) ? interfaces : [interfaces];
+    const ifaceArray = Array.isArray(interfaces) ? interfaces : [interfaces];
 
-  return {
-    default: defaultNet,
-    interfaces: ifaceArray.map((i) => ({
-      iface: i.iface,
-      ip4: i.ip4,
-      ip6: i.ip6,
-      mac: i.mac,
-      type: i.type,
-      speed: i.speed,
-      operstate: i.operstate,
-      internal: i.internal,
-      virtual: i.virtual,
-    })),
-    stats: stats.map((s) => ({
-      iface: s.iface,
-      rx_bytes: s.rx_bytes,
-      tx_bytes: s.tx_bytes,
-      rx_sec: s.rx_sec,
-      tx_sec: s.tx_sec,
-    })),
-  };
+    return {
+      default: defaultNet,
+      interfaces: (ifaceArray || []).map((i) => ({
+        iface: i.iface,
+        ip4: i.ip4,
+        ip6: i.ip6,
+        mac: i.mac,
+        type: i.type,
+        speed: i.speed,
+        operstate: i.operstate,
+        internal: i.internal,
+        virtual: i.virtual,
+      })),
+      stats: (stats || []).map((s) => ({
+        iface: s.iface,
+        rx_bytes: s.rx_bytes,
+        tx_bytes: s.tx_bytes,
+        rx_sec: s.rx_sec,
+        tx_sec: s.tx_sec,
+      })),
+      isVercel: !!process.env.VERCEL,
+    };
+  } catch (error) {
+    console.error("Error in getNetworkInfo:", error);
+    return {
+      default: "",
+      interfaces: [],
+      stats: [],
+      isVercel: !!process.env.VERCEL,
+    };
+  }
 }
 
 export function formatBytes(bytes: number, decimals = 2): string {

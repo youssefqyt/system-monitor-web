@@ -5,7 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import { Network } from "lucide-react";
 
 export default function PortsPage() {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -28,8 +28,9 @@ export default function PortsPage() {
     load();
   }, [load]);
 
-  const filtered = data.filter(
-    (p) =>
+  const list = data?.list ?? [];
+  const filtered = list.filter(
+    (p: any) =>
       String(p.localPort).includes(search) ||
       String(p.pid).includes(search) ||
       p.protocol?.toLowerCase().includes(search.toLowerCase()) ||
@@ -44,6 +45,18 @@ export default function PortsPage() {
         onRefresh={load}
         loading={loading}
       />
+
+      {data?.isVercel && (
+        <div className="rounded-xl border border-blue-800 bg-blue-950/40 p-4 text-sm text-blue-400 mb-6 flex items-start gap-3">
+          <Network className="w-5 h-5 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold mb-1">Serverless Environment Detected</p>
+            <p className="opacity-80">
+              Port information on Vercel is highly restricted. You are seeing listening ports within the serverless execution sandbox.
+            </p>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-400 mb-6">
@@ -91,7 +104,7 @@ export default function PortsPage() {
             </tr>
           </thead>
           <tbody>
-            {loading && data.length === 0 ? (
+            {loading && !data ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-gray-600 text-sm">
                   Loading...
@@ -104,7 +117,7 @@ export default function PortsPage() {
                 </td>
               </tr>
             ) : (
-              filtered.map((port, i) => (
+              filtered.map((port: any, i: number) => (
                 <tr
                   key={i}
                   className="border-b border-gray-800/50 hover:bg-gray-800/40 transition-colors"

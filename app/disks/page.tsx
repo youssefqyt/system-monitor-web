@@ -45,6 +45,18 @@ export default function DisksPage() {
         loading={loading}
       />
 
+      {data?.isVercel && (
+        <div className="rounded-xl border border-blue-800 bg-blue-950/40 p-4 text-sm text-blue-400 mb-6 flex items-start gap-3">
+          <HardDrive className="w-5 h-5 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold mb-1">Serverless Environment Detected</p>
+            <p className="opacity-80">
+              Disk information on Vercel is restricted. You are seeing metrics for the ephemeral serverless container.
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-400 mb-6">
           {error}

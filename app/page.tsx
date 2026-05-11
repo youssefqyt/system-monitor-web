@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import StatCard from "@/components/StatCard";
+import { Battery, Cpu, MemoryStick, Monitor, Zap } from "lucide-react";
+import ClientDeviceSummary from "@/components/ClientDeviceSummary";
+import InfoBanner from "@/components/InfoBanner";
 import PageHeader from "@/components/PageHeader";
-import { Cpu, MemoryStick, Monitor, Battery, Zap } from "lucide-react";
+import StatCard from "@/components/StatCard";
+import { useSystemView } from "@/lib/useSystemView";
 
 function formatBytes(bytes: number) {
   if (!bytes) return "0 B";
@@ -14,159 +16,163 @@ function formatBytes(bytes: number) {
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { clientData, error, isBrowserFallback, isHostedBrowserMode, load, loading, systemData, viewMode } =
+    useSystemView({ refreshInterval: 5000 });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/system");
-      if (!res.ok) throw new Error("Failed to fetch");
-      setData(await res.json());
-    } catch {
-      setError("Could not load system info.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = setInterval(load, 5000);
-    return () => clearInterval(interval);
-  }, [load]);
+  const titleDescription =
+    viewMode === "browser"
+      ? "Device overview from browser APIs for the current visitor"
+      : "Live overview of your machine — refreshes every 5 seconds";
 
   return (
     <div>
       <PageHeader
         title="System Dashboard"
-        description="Live overview of your machine — refreshes every 5 seconds"
+        description={titleDescription}
         onRefresh={load}
         loading={loading}
       />
 
-      {data?.isVercel && (
-        <div className="rounded-xl border border-blue-800 bg-blue-950/40 p-4 text-sm text-blue-400 mb-6 flex items-start gap-3">
-          <Monitor className="w-5 h-5 mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold mb-1">Serverless Environment Detected</p>
-            <p className="opacity-80">
-              You are running this on Vercel. Hardware metrics reflect the serverless function environment, not your local machine. Some metrics may be unavailable or restricted.
-            </p>
-          </div>
-        </div>
+      {isHostedBrowserMode && (
+        <InfoBanner icon={Monitor} title="Per-visitor browser mode" tone="info">
+          This hosted page now reads the connected device through browser APIs instead of the Vercel server. CPU model, live RAM usage, disks, and processes stay hidden because browsers do not expose them.
+        </InfoBanner>
+      )}
+
+      {isBrowserFallback && (
+        <InfoBanner icon={Monitor} title="Browser fallback in use" tone="warning">
+          The local system API did not respond, so this page is showing browser-level device data for the current tab.
+        </InfoBanner>
       )}
 
       {error && (
-        <div className="rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-400 mb-6">
+        <div className="mb-6 rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-400">
           {error}
         </div>
       )}
 
-      {loading && !data && (
-        <div className="text-gray-500 text-sm">Loading system info...</div>
+      {loading && !systemData && !clientData && (
+        <div className="text-sm text-gray-500">Loading system info...</div>
       )}
 
-      {data && (
+      {viewMode === "browser" && clientData && <ClientDeviceSummary data={clientData} />}
+
+      {viewMode === "system" && systemData && (
         <>
           <section className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
               CPU
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard
                 label="Processor"
-                value={data.cpu.brand}
-                sub={data.cpu.manufacturer}
+                value={systemData.cpu.brand}
+                sub={systemData.cpu.manufacturer}
                 icon={Cpu}
                 accent="sky"
               />
               <StatCard
                 label="CPU Load"
-                value={`${data.cpu.load}%`}
-                sub={`${data.cpu.speed} GHz base`}
+                value={`${systemData.cpu.load}%`}
+                sub={`${systemData.cpu.speed} GHz base`}
                 icon={Zap}
-                accent={data.cpu.load > 80 ? "red" : data.cpu.load > 50 ? "yellow" : "green"}
-                bar={data.cpu.load}
+                accent={
+                  systemData.cpu.load > 80
+                    ? "red"
+                    : systemData.cpu.load > 50
+                      ? "yellow"
+                      : "green"
+                }
+                bar={systemData.cpu.load}
               />
               <StatCard
                 label="Cores"
-                value={data.cpu.cores}
-                sub={`${data.cpu.physicalCores} physical`}
+                value={systemData.cpu.cores}
+                sub={`${systemData.cpu.physicalCores} physical`}
                 accent="purple"
               />
               <StatCard
                 label="Speed"
-                value={`${data.cpu.speed} GHz`}
+                value={`${systemData.cpu.speed} GHz`}
                 accent="sky"
               />
             </div>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
               Memory
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard
                 label="RAM Used"
-                value={`${data.memory.usedPercent}%`}
-                sub={`${formatBytes(data.memory.used)} / ${formatBytes(data.memory.total)}`}
+                value={`${systemData.memory.usedPercent}%`}
+                sub={`${formatBytes(systemData.memory.used)} / ${formatBytes(systemData.memory.total)}`}
                 icon={MemoryStick}
-                accent={data.memory.usedPercent > 85 ? "red" : data.memory.usedPercent > 60 ? "yellow" : "green"}
-                bar={data.memory.usedPercent}
+                accent={
+                  systemData.memory.usedPercent > 85
+                    ? "red"
+                    : systemData.memory.usedPercent > 60
+                      ? "yellow"
+                      : "green"
+                }
+                bar={systemData.memory.usedPercent}
               />
               <StatCard
                 label="Total RAM"
-                value={formatBytes(data.memory.total)}
+                value={formatBytes(systemData.memory.total)}
                 accent="sky"
               />
               <StatCard
                 label="Used"
-                value={formatBytes(data.memory.used)}
+                value={formatBytes(systemData.memory.used)}
                 accent="yellow"
               />
               <StatCard
                 label="Free"
-                value={formatBytes(data.memory.free)}
+                value={formatBytes(systemData.memory.free)}
                 accent="green"
               />
             </div>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
               System
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard
                 label="OS"
-                value={data.os.distro || data.os.platform}
-                sub={data.os.release}
+                value={systemData.os.distro || systemData.os.platform}
+                sub={systemData.os.release}
                 icon={Monitor}
                 accent="sky"
               />
               <StatCard
                 label="Hostname"
-                value={data.os.hostname}
+                value={systemData.os.hostname}
                 accent="purple"
               />
               <StatCard
                 label="Architecture"
-                value={data.os.arch}
-                sub={`Kernel ${data.os.kernel}`}
+                value={systemData.os.arch}
+                sub={`Kernel ${systemData.os.kernel}`}
                 accent="sky"
               />
-              {data.battery.hasBattery ? (
+              {systemData.battery.hasBattery ? (
                 <StatCard
                   label="Battery"
-                  value={`${data.battery.percent}%`}
-                  sub={data.battery.isCharging ? "Charging" : "Discharging"}
+                  value={`${systemData.battery.percent}%`}
+                  sub={systemData.battery.isCharging ? "Charging" : "Discharging"}
                   icon={Battery}
-                  accent={data.battery.percent < 20 ? "red" : data.battery.isCharging ? "green" : "yellow"}
-                  bar={data.battery.percent}
+                  accent={
+                    systemData.battery.percent < 20
+                      ? "red"
+                      : systemData.battery.isCharging
+                        ? "green"
+                        : "yellow"
+                  }
+                  bar={systemData.battery.percent}
                 />
               ) : (
                 <StatCard
@@ -180,18 +186,18 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {data.gpu.length > 0 && (
+          {systemData.gpu.length > 0 && (
             <section className="mb-8">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 GPU
               </h2>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {data.gpu.map((g: any, i: number) => (
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                {systemData.gpu.map((gpu, index) => (
                   <StatCard
-                    key={i}
-                    label={`GPU ${i + 1}`}
-                    value={g.model}
-                    sub={g.vram ? `${g.vram} MB VRAM — ${g.vendor}` : g.vendor}
+                    key={index}
+                    label={`GPU ${index + 1}`}
+                    value={gpu.model}
+                    sub={gpu.vram ? `${gpu.vram} MB VRAM — ${gpu.vendor}` : gpu.vendor}
                     accent="purple"
                   />
                 ))}

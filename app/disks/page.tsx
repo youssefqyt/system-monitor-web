@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import InfoBanner from "@/components/InfoBanner";
 import StatCard from "@/components/StatCard";
 import PageHeader from "@/components/PageHeader";
 import { HardDrive } from "lucide-react";
+import { useAccessMode } from "@/lib/accessMode";
 
 function formatBytes(bytes: number) {
   if (!bytes) return "0 B";
@@ -14,6 +16,7 @@ function formatBytes(bytes: number) {
 }
 
 export default function DisksPage() {
+  const accessMode = useAccessMode();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,28 +36,31 @@ export default function DisksPage() {
   }, []);
 
   useEffect(() => {
+    if (accessMode !== "local") {
+      setLoading(false);
+      return;
+    }
+
     load();
-  }, [load]);
+  }, [accessMode, load]);
 
   return (
     <div>
       <PageHeader
         title="Disks"
-        description="Physical disks and filesystem usage"
-        onRefresh={load}
+        description={
+          accessMode === "browser"
+            ? "Physical disks are only available when monitoring the same machine locally"
+            : "Physical disks and filesystem usage"
+        }
+        onRefresh={accessMode === "local" ? load : undefined}
         loading={loading}
       />
 
-      {data?.isVercel && (
-        <div className="rounded-xl border border-blue-800 bg-blue-950/40 p-4 text-sm text-blue-400 mb-6 flex items-start gap-3">
-          <HardDrive className="w-5 h-5 mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold mb-1">Serverless Environment Detected</p>
-            <p className="opacity-80">
-              Disk information on Vercel is restricted. You are seeing metrics for the ephemeral serverless container.
-            </p>
-          </div>
-        </div>
+      {accessMode === "browser" && (
+        <InfoBanner icon={HardDrive} title="Browser privacy limit" tone="warning">
+          Browsers cannot inspect a visitor&apos;s disk layout, filesystem usage, or I/O counters. This page is only accurate when you open the app directly on the machine being monitored.
+        </InfoBanner>
       )}
 
       {error && (
@@ -63,11 +69,13 @@ export default function DisksPage() {
         </div>
       )}
 
-      {loading && !data && (
+      {loading && !data && accessMode !== "browser" && (
         <div className="text-gray-500 text-sm">Loading disk info...</div>
       )}
 
-      {data && (
+      {accessMode === "browser"
+        ? null
+        : data && (
         <>
           {data.physical.length > 0 && (
             <section className="mb-8">

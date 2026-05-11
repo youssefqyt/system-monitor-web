@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import StatCard from "@/components/StatCard";
+import { Battery, Cpu, Layers, MemoryStick, Monitor, Zap } from "lucide-react";
+import ClientDeviceSummary from "@/components/ClientDeviceSummary";
+import InfoBanner from "@/components/InfoBanner";
 import PageHeader from "@/components/PageHeader";
-import { Cpu, MemoryStick, Monitor, Battery, Zap, Layers } from "lucide-react";
+import StatCard from "@/components/StatCard";
+import { useSystemView } from "@/lib/useSystemView";
 
 function formatBytes(bytes: number) {
   if (!bytes) return "0 B";
@@ -14,138 +16,151 @@ function formatBytes(bytes: number) {
 }
 
 export default function HardwarePage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/system");
-      if (!res.ok) throw new Error("Failed");
-      setData(await res.json());
-    } catch {
-      setError("Could not load hardware info.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { clientData, error, isBrowserFallback, isHostedBrowserMode, load, loading, systemData, viewMode } =
+    useSystemView();
 
   return (
     <div>
       <PageHeader
         title="Hardware"
-        description="CPU, memory, GPU, and battery details"
+        description={
+          viewMode === "browser"
+            ? "Device details available through browser APIs"
+            : "CPU, memory, GPU, and battery details"
+        }
         onRefresh={load}
         loading={loading}
       />
 
+      {isHostedBrowserMode && (
+        <InfoBanner icon={Monitor} title="Hosted device mode" tone="info">
+          This page shows the hardware signals the visitor&apos;s browser can safely expose. Exact CPU model, live RAM usage, hostname, disk layout, and processes remain private to the device.
+        </InfoBanner>
+      )}
+
+      {isBrowserFallback && (
+        <InfoBanner icon={Monitor} title="Browser fallback in use" tone="warning">
+          The local machine endpoint is unavailable, so the page is showing browser-level device information instead.
+        </InfoBanner>
+      )}
+
       {error && (
-        <div className="rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-400 mb-6">
+        <div className="mb-6 rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-400">
           {error}
         </div>
       )}
 
-      {loading && !data && (
-        <div className="text-gray-500 text-sm">Loading hardware info...</div>
+      {loading && !systemData && !clientData && (
+        <div className="text-sm text-gray-500">Loading hardware info...</div>
       )}
 
-      {data && (
+      {viewMode === "browser" && clientData && (
+        <ClientDeviceSummary data={clientData} detailed />
+      )}
+
+      {viewMode === "system" && systemData && (
         <>
           <section className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
               <Cpu size={14} /> Processor
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
               <StatCard
                 label="CPU Model"
-                value={data.cpu.brand}
-                sub={data.cpu.manufacturer}
+                value={systemData.cpu.brand}
+                sub={systemData.cpu.manufacturer}
                 icon={Cpu}
                 accent="sky"
               />
               <StatCard
                 label="Base Speed"
-                value={`${data.cpu.speed} GHz`}
+                value={`${systemData.cpu.speed} GHz`}
                 accent="sky"
               />
               <StatCard
                 label="Cores / Threads"
-                value={`${data.cpu.physicalCores} / ${data.cpu.cores}`}
+                value={`${systemData.cpu.physicalCores} / ${systemData.cpu.cores}`}
                 sub="Physical / Logical"
                 accent="purple"
               />
               <StatCard
                 label="Current Load"
-                value={`${data.cpu.load}%`}
+                value={`${systemData.cpu.load}%`}
                 icon={Zap}
-                accent={data.cpu.load > 80 ? "red" : data.cpu.load > 50 ? "yellow" : "green"}
-                bar={data.cpu.load}
+                accent={
+                  systemData.cpu.load > 80
+                    ? "red"
+                    : systemData.cpu.load > 50
+                      ? "yellow"
+                      : "green"
+                }
+                bar={systemData.cpu.load}
               />
             </div>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
               <MemoryStick size={14} /> Memory (RAM)
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard
                 label="Total RAM"
-                value={formatBytes(data.memory.total)}
+                value={formatBytes(systemData.memory.total)}
                 accent="sky"
               />
               <StatCard
                 label="Used"
-                value={formatBytes(data.memory.used)}
-                sub={`${data.memory.usedPercent}%`}
-                accent={data.memory.usedPercent > 85 ? "red" : "yellow"}
-                bar={data.memory.usedPercent}
+                value={formatBytes(systemData.memory.used)}
+                sub={`${systemData.memory.usedPercent}%`}
+                accent={systemData.memory.usedPercent > 85 ? "red" : "yellow"}
+                bar={systemData.memory.usedPercent}
               />
               <StatCard
                 label="Free"
-                value={formatBytes(data.memory.free)}
+                value={formatBytes(systemData.memory.free)}
                 accent="green"
               />
               <StatCard
                 label="Usage"
-                value={`${data.memory.usedPercent}%`}
+                value={`${systemData.memory.usedPercent}%`}
                 icon={MemoryStick}
-                accent={data.memory.usedPercent > 85 ? "red" : data.memory.usedPercent > 60 ? "yellow" : "green"}
-                bar={data.memory.usedPercent}
+                accent={
+                  systemData.memory.usedPercent > 85
+                    ? "red"
+                    : systemData.memory.usedPercent > 60
+                      ? "yellow"
+                      : "green"
+                }
+                bar={systemData.memory.usedPercent}
               />
             </div>
           </section>
 
-          {data.gpu.length > 0 && (
+          {systemData.gpu.length > 0 && (
             <section className="mb-8">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 <Layers size={14} /> GPU
               </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {data.gpu.map((g: any, i: number) => (
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {systemData.gpu.map((gpu, index) => (
                   <div
-                    key={i}
-                    className="bg-gray-900 rounded-xl border border-gray-800 p-5"
+                    key={index}
+                    className="rounded-xl border border-gray-800 bg-gray-900 p-5"
                   >
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-                      GPU {i + 1}
+                    <div className="mb-2 text-xs uppercase tracking-wider text-gray-500">
+                      GPU {index + 1}
                     </div>
-                    <div className="text-lg font-bold text-white mb-1">{g.model}</div>
-                    <div className="text-sm text-gray-400">{g.vendor}</div>
-                    {g.vram && (
+                    <div className="mb-1 text-lg font-bold text-white">{gpu.model}</div>
+                    <div className="text-sm text-gray-400">{gpu.vendor}</div>
+                    {gpu.vram ? (
                       <div className="mt-3 flex items-center gap-2">
                         <span className="text-xs text-gray-500">VRAM:</span>
                         <span className="text-sm font-semibold text-purple-400">
-                          {g.vram} MB
+                          {gpu.vram} MB
                         </span>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -153,74 +168,74 @@ export default function HardwarePage() {
           )}
 
           <section className="mb-8">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
               <Monitor size={14} /> Operating System
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
               <StatCard
                 label="OS"
-                value={data.os.distro || data.os.platform}
-                sub={data.os.release}
+                value={systemData.os.distro || systemData.os.platform}
+                sub={systemData.os.release}
                 icon={Monitor}
                 accent="sky"
               />
-              <StatCard
-                label="Kernel"
-                value={data.os.kernel}
-                accent="sky"
-              />
+              <StatCard label="Kernel" value={systemData.os.kernel} accent="sky" />
               <StatCard
                 label="Architecture"
-                value={data.os.arch}
+                value={systemData.os.arch}
                 accent="purple"
               />
               <StatCard
                 label="Hostname"
-                value={data.os.hostname}
+                value={systemData.os.hostname}
                 accent="sky"
               />
               <StatCard
                 label="Platform"
-                value={data.os.platform}
+                value={systemData.os.platform}
                 accent="sky"
               />
             </div>
           </section>
 
-          {data.battery && (
-            <section className="mb-8">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Battery size={14} /> Battery
-              </h2>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {data.battery.hasBattery ? (
-                  <>
-                    <StatCard
-                      label="Charge"
-                      value={`${data.battery.percent}%`}
-                      sub={data.battery.isCharging ? "Charging" : "On battery"}
-                      icon={Battery}
-                      accent={data.battery.percent < 20 ? "red" : data.battery.isCharging ? "green" : "yellow"}
-                      bar={data.battery.percent}
-                    />
-                    <StatCard
-                      label="Status"
-                      value={data.battery.isCharging ? "Charging" : "Discharging"}
-                      accent={data.battery.isCharging ? "green" : "yellow"}
-                    />
-                  </>
-                ) : (
+          <section className="mb-8">
+            <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+              <Battery size={14} /> Battery
+            </h2>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+              {systemData.battery.hasBattery ? (
+                <>
                   <StatCard
-                    label="Battery"
-                    value="No battery detected"
-                    sub="Likely a desktop or AC-powered device"
+                    label="Charge"
+                    value={`${systemData.battery.percent}%`}
+                    sub={systemData.battery.isCharging ? "Charging" : "On battery"}
                     icon={Battery}
-                    accent="sky"
+                    accent={
+                      systemData.battery.percent < 20
+                        ? "red"
+                        : systemData.battery.isCharging
+                          ? "green"
+                          : "yellow"
+                    }
+                    bar={systemData.battery.percent}
                   />
-                )}
-              </div>
-            </section>
-          )}
+                  <StatCard
+                    label="Status"
+                    value={systemData.battery.isCharging ? "Charging" : "Discharging"}
+                    accent={systemData.battery.isCharging ? "green" : "yellow"}
+                  />
+                </>
+              ) : (
+                <StatCard
+                  label="Battery"
+                  value="No battery detected"
+                  sub="Likely a desktop or AC-powered device"
+                  icon={Battery}
+                  accent="sky"
+                />
+              )}
+            </div>
+          </section>
         </>
       )}
     </div>

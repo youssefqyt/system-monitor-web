@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import InfoBanner from "@/components/InfoBanner";
 import StatCard from "@/components/StatCard";
 import PageHeader from "@/components/PageHeader";
 import { Wifi, ArrowDown, ArrowUp } from "lucide-react";
+import { useAccessMode } from "@/lib/accessMode";
 
 function formatBytes(bytes: number) {
   if (!bytes) return "0 B";
@@ -22,6 +24,7 @@ function formatSpeed(bps: number) {
 }
 
 export default function NetworkPage() {
+  const accessMode = useAccessMode();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,10 +44,15 @@ export default function NetworkPage() {
   }, []);
 
   useEffect(() => {
+    if (accessMode !== "local") {
+      setLoading(false);
+      return;
+    }
+
     load();
     const interval = setInterval(load, 3000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [accessMode, load]);
 
   const activeIfaces = data?.interfaces.filter(
     (i: any) => !i.internal && i.operstate === "up"
@@ -54,21 +62,19 @@ export default function NetworkPage() {
     <div>
       <PageHeader
         title="Network"
-        description="Interfaces and live bandwidth — refreshes every 3 seconds"
-        onRefresh={load}
+        description={
+          accessMode === "browser"
+            ? "Detailed network interfaces require local machine access"
+            : "Interfaces and live bandwidth — refreshes every 3 seconds"
+        }
+        onRefresh={accessMode === "local" ? load : undefined}
         loading={loading}
       />
 
-      {data?.isVercel && (
-        <div className="rounded-xl border border-blue-800 bg-blue-950/40 p-4 text-sm text-blue-400 mb-6 flex items-start gap-3">
-          <Wifi className="w-5 h-5 mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold mb-1">Serverless Environment Detected</p>
-            <p className="opacity-80">
-              Network metrics on Vercel are limited. You are seeing the network stack of the serverless function container.
-            </p>
-          </div>
-        </div>
+      {accessMode === "browser" && (
+        <InfoBanner icon={Wifi} title="Browser privacy limit" tone="warning">
+          Browsers do not expose the visitor&apos;s network interfaces, MAC address, local IP map, or per-interface bandwidth. This page is only accurate when the app is opened locally on the monitored machine.
+        </InfoBanner>
       )}
 
       {error && (
@@ -77,11 +83,13 @@ export default function NetworkPage() {
         </div>
       )}
 
-      {loading && !data && (
+      {loading && !data && accessMode !== "browser" && (
         <div className="text-gray-500 text-sm">Loading network info...</div>
       )}
 
-      {data && (
+      {accessMode === "browser"
+        ? null
+        : data && (
         <>
           {data.default && (
             <div className="mb-6 flex items-center gap-2 text-sm text-gray-400">

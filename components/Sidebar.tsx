@@ -51,7 +51,7 @@ export default function Sidebar() {
         ))}
       </nav>
       <div className="px-5 py-4 border-t border-gray-800 text-xs text-gray-600">
-        Reads live system data
+        Localhost: full system data. Hosted: browser-safe device data.
       </div>
     </aside>
   );
